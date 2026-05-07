@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스크랩 보드</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Apple SD Gothic Neo','Pretendard',sans-serif;background:#F7F7F5;color:#1a1a1a;min-height:100vh;}
+.header{padding:28px 24px 0;}
+.header h1{font-size:22px;font-weight:700;letter-spacing:-0.5px;}
+.header .sub{font-size:13px;color:#999;margin-top:4px;}
+.toolbar{display:flex;gap:8px;padding:16px 24px 0;flex-wrap:wrap;align-items:center;}
+.toolbar input{flex:1;min-width:180px;padding:9px 14px;font-size:13px;border:1px solid #E0E0E0;border-radius:8px;background:#fff;outline:none;}
+.toolbar input:focus{border-color:#aaa;}
+.toolbar button{padding:9px 14px;font-size:13px;border:1px solid #E0E0E0;border-radius:8px;background:#fff;cursor:pointer;color:#555;}
+.toolbar button:hover{background:#F0F0EE;}
+.tabs{display:flex;gap:6px;padding:14px 24px 0;flex-wrap:wrap;}
+.tab{font-size:12px;padding:5px 14px;border-radius:20px;border:none;cursor:pointer;background:#EBEBEA;color:#888;transition:all 0.15s;}
+.tab.on{font-weight:600;}
+.tab[data-cat="기술/개발"].on{background:#E0EAFF;color:#1A3A8F;}
+.tab[data-cat="디자인/UX"].on{background:#EDE0FF;color:#3B1A8F;}
+.tab[data-cat="브랜딩/영상"].on{background:#FFE0E0;color:#8F1A1A;}
+.tab[data-cat="비즈니스/마케팅"].on{background:#E0FFE8;color:#1A5C2A;}
+.tab[data-cat="전체"].on{background:#E8E8E6;color:#333;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px;padding:14px 24px 32px;}
+.card{background:#fff;border:1px solid #EAEAE8;border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;}
+.card:hover{border-color:#D0D0CE;}
+.card.open{border-color:#C8C8C6;box-shadow:0 2px 12px rgba(0,0,0,0.06);}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px;}
+.badge{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;}
+.b-dev{background:#E0EAFF;color:#1A3A8F;}
+.b-design{background:#EDE0FF;color:#3B1A8F;}
+.b-brand{background:#FFE0E0;color:#8F1A1A;}
+.b-biz{background:#E0FFE8;color:#1A5C2A;}
+.b-etc{background:#F0F0EE;color:#888;}
+.b-tag{background:#F5F5F3;color:#999;}
+.card-title{font-size:13.5px;font-weight:600;line-height:1.5;margin-bottom:3px;color:#1a1a1a;}
+.card-src{font-size:11.5px;color:#bbb;}
+.divider{border:none;border-top:1px solid #F0F0EE;margin:12px 0;}
+.summary{font-size:13px;color:#555;line-height:1.7;margin-bottom:12px;}
+.sec{font-size:10.5px;font-weight:600;color:#ccc;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;}
+.chip{font-size:11.5px;padding:2px 9px;background:#F7F7F5;border:1px solid #EAEAE8;border-radius:6px;color:#666;}
+.links{display:flex;flex-direction:column;gap:4px;}
+.links a{font-size:12px;color:#4A7FD4;text-decoration:none;}
+.links a:hover{text-decoration:underline;}
+.hint{font-size:11px;color:#ccc;text-align:right;margin-top:8px;}
+.empty{grid-column:1/-1;text-align:center;padding:48px;color:#bbb;font-size:14px;}
+.cnt{font-size:13px;color:#aaa;margin-left:auto;}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>스크랩 보드</h1>
+  <div class="sub" id="sub">로딩 중...</div>
+</div>
+<div class="toolbar">
+  <input type="text" id="q" placeholder="검색..." oninput="render()">
+  <button onclick="exportCSV()">CSV 내보내기</button>
+  <span class="cnt" id="cnt"></span>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="grid" id="grid"></div>
+
+<script>
+const CAT_CLS={"기술/개발":"b-dev","디자인/UX":"b-design","브랜딩/영상":"b-brand","비즈니스/마케팅":"b-biz"};
+const CATS=["전체","기술/개발","디자인/UX","브랜딩/영상","비즈니스/마케팅"];
+let allCards=[],activeCat="전체",openId=null;
+
+fetch('cards.json?v='+Date.now())
+  .then(r=>r.json())
+  .then(data=>{
+    allCards=data;
+    document.getElementById('sub').textContent='총 '+allCards.length+'개 스크랩';
+    render();
+  })
+  .catch(e=>{
+    document.getElementById('sub').textContent='로드 실패: '+e.message;
+  });
+
+function render(){
+  const q=(document.getElementById('q').value||'').toLowerCase();
+  const filtered=allCards.filter(c=>{
+    const mC=activeCat==='전체'||c.cat===activeCat;
+    const mQ=!q||c.title.toLowerCase().includes(q)||(c.summary||'').toLowerCase().includes(q)||(c.svcs||'').toLowerCase().includes(q);
+    return mC&&mQ;
+  });
+  document.getElementById('cnt').textContent=filtered.length+' / '+allCards.length+'개';
+  const tabsEl=document.getElementById('tabs');
+  tabsEl.innerHTML=CATS.map(cat=>{
+    const n=cat==='전체'?allCards.length:allCards.filter(c=>c.cat===cat).length;
+    return `<button class="tab${activeCat===cat?' on':''}" data-cat="${cat}" onclick="setCat('${cat}')">${cat} <span style="opacity:.6">${n}</span></button>`;
+  }).join('');
+  const gridEl=document.getElementById('grid');
+  if(!filtered.length){gridEl.innerHTML='<div class="empty">카드가 없어요</div>';return;}
+  gridEl.innerHTML=filtered.map(c=>{
+    const bc=CAT_CLS[c.cat]||'b-etc';
+    const open=openId===c.id;
+    const chips=(c.svcs||'').split('/').map(s=>s.trim()).filter(Boolean).map(s=>`<span class="chip">${s}</span>`).join('');
+    const urlLinks=(c.links||[]).map(u=>`<a href="${u}" target="_blank" onclick="event.stopPropagation()">→ ${u.replace(/https?:\/\//,'').split('/')[0]}</a>`).join('');
+    return `<div class="card${open?' open':''}" onclick="toggle(${c.id})">
+      <div class="badges"><span class="badge ${bc}">${c.cat}</span>${c.tag?`<span class="badge b-tag">${c.tag}</span>`:''}</div>
+      <div class="card-title">${c.title}</div>
+      <div class="card-src">${c.src||''}</div>
+      ${open?`<div class="divider"></div>
+        ${c.summary?`<div class="summary">${c.summary}</div>`:''}
+        ${chips?`<div class="sec">서비스</div><div class="chips">${chips}</div>`:''}
+        <div class="sec">링크</div><div class="links">${urlLinks}</div>`:''}
+      <div class="hint">${open?'접기 ↑':'펼치기 ↓'}</div>
+    </div>`;
+  }).join('');
+}
+function setCat(cat){activeCat=cat;render();}
+function toggle(id){openId=openId===id?null:id;render();}
+function exportCSV(){
+  const bom="\uFEFF";
+  const h=["제목","카테고리","태그","출처","요약","서비스","URL"].join(",");
+  const rows=allCards.map(c=>[c.title,c.cat,c.tag||'',c.src,(c.summary||'').replace(/,/g,'·'),(c.svcs||'').replace(/,/g,'·'),c.url].map(v=>`"${v||''}"`).join(","));
+  const a=document.createElement("a");
+  a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(bom+[h,...rows].join("\n"));
+  a.download="scrap_board.csv";a.click();
+}
+</script>
+</body>
+</html>
